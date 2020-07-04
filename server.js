@@ -13,7 +13,9 @@ const MOVIES = require('./movies.json');
 const app = express();
 
 // start of pipeline: all requests go through these
-app.use(morgan('dev'));
+const morganSetting = process.env.NODE_ENV === 'production' ? 'tiny' : 'common';
+app.use(morgan(morganSetting));
+
 app.use(cors());   // allow cross-origin resource sharing
 app.use(helmet()); // be careful with your response headers
 
@@ -23,17 +25,24 @@ app.use(function validateBearerToken(req, res, next) {
   const authToken = req.get('Authorization');
 
   if (!authToken || authToken.split(' ')[1] !== apiToken) {
-    console.log('unauthorized request: api token check failed');
     return res.status(401).json({ error: 'Unauthorized request' });
   }
   next(); // go to the next handler (may be endpoint-specific)
 });
- 
+
+app.use((error, req, res, next) => {
+  let response;
+  if (process.env.NODE_ENV === 'production') {
+    response = { error: { message: 'server error' }}
+  } else {
+    response = { error }
+  }
+  res.status(500).json(response);
+}) 
 
 function handleGetMovie(req, res) {
   const { genre, country, vote } = req.query;
   if (!genre && !country && !vote) {
-    console.log('movies end point');
     res.json(MOVIES);
   }
   let movies = MOVIES;
@@ -49,13 +58,12 @@ function handleGetMovie(req, res) {
   }
 
 
-  console.log(movies);
   res.json(movies);
 }
 app.get('/movie', handleGetMovie);
 
+const PORT = process.env.PORT || 8000;
 
-const PORT = 8000;
 app.listen(PORT, () => {
   console.log(`Server listening at http://localhost:${PORT}`);
 });
